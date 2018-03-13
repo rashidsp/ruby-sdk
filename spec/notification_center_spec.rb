@@ -30,9 +30,7 @@ describe Optimizely::NotificationCenter do
 
   before(:context) do
     class CallBack
-      def call(args)
-        args
-      end
+      def call; end
     end
 
     @callback = CallBack.new
@@ -88,6 +86,47 @@ describe Optimizely::NotificationCenter do
         expect(notification_center.notifications[Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]].length)
           .to eq(1)
       end
+
+      it 'should add, and return notification ID when valid callbacks as closures are added' do
+        def sum(args)
+          spy_logger.log Logger::INFO, "Sum: #{args.inject(:+)}"
+        end
+
+        callback_proc = proc { |args| sum(args) }
+        callback_lambda = ->(args) { sum(args) }
+
+        expect(notification_center.add_notification_listener(
+                 Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE],
+                 callback_proc
+        )).to eq(1)
+
+        expect(notification_center.add_notification_listener(
+                 Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE],
+                 callback_lambda
+        )).to eq(2)
+
+        # verifies that two notifications are added
+        expect(notification_center.notifications[Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]].length)
+          .to eq(2)
+      end
+
+      it 'should add, and return notification ID when callback as a block is added' do
+        expect(notification_center.add_notification_listener(
+          Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]
+        ) { |args| spy_logger.log Logger::INFO, "Sum: #{args.inject(:+)}" }).to eq(1)
+      end
+
+      it 'should add only closure callback when both closure and a block are sent' do
+        closure_callback = proc { |args| spy_logger.log Logger::INFO, "closure sum: #{args.inject(:+)}" }
+        expect(notification_center.add_notification_listener(
+          Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE],
+          closure_callback
+        ) { |args| spy_logger.log Logger::INFO, "block sum: #{args.inject(:+)}" }).to eq(1)
+
+        # verifies that only closure callback is added
+        expect(notification_center.notifications[Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]][0][:callback])
+          .to eq(closure_callback)
+      end
     end
 
     describe 'test add notification for multiple notification types' do
@@ -108,9 +147,7 @@ describe Optimizely::NotificationCenter do
       it 'should add and return notification ID when multiple
             valid callbacks are added for a single notification type' do
         class CallBackSecond
-          def call(_args)
-            'Test multi listner.'
-          end
+          def call; end
         end
 
         @callback_second = CallBackSecond.new
@@ -166,11 +203,6 @@ describe Optimizely::NotificationCenter do
       let(:notification_center) { Optimizely::NotificationCenter.new(spy_logger, raise_error_handler) }
       before(:example) do
         @inner_notification_center = notification_center
-        class CallBackSecond
-          def call(_args)
-            'Test remove notification.'
-          end
-        end
 
         @callback_second = CallBackSecond.new
         @callback_reference_second = @callback_second.method(:call)
@@ -321,19 +353,12 @@ describe Optimizely::NotificationCenter do
       let(:notification_center) { Optimizely::NotificationCenter.new(spy_logger, raise_error_handler) }
       before(:example) do
         @inner_notification_center = notification_center
-        class CallBackSecond
-          def call(_args)
-            'Test remove notification.'
-          end
-        end
 
         @callback_second = CallBackSecond.new
         @callback_reference_second = @callback_second.method(:call)
 
         class CallBackThird
-          def call(_args)
-            'Test remove notification.'
-          end
+          def call; end
         end
 
         @callback_third = CallBackThird.new
@@ -406,9 +431,7 @@ describe Optimizely::NotificationCenter do
           @logger.log Logger::INFO, 'delivered two.'
         end
 
-        def deliver_three(_args)
-          @logger.log Logger::INFO, 'delivered three.'
-        end
+        def deliver_three; end
       end
       let(:raise_error_handler) { Optimizely::RaiseErrorHandler.new }
       let(:invitation) { Invitation.new(spy_logger) }
@@ -470,7 +493,7 @@ describe Optimizely::NotificationCenter do
                                                  .with(Logger::INFO, 'delivered two.')
       end
 
-      it 'should send notifications and verify that all callbacks are called' do
+      it 'should send notifications and verify that all callbacks as method references are called' do
         notification_type_decision = Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]
         notification_type_track = Optimizely::NotificationCenter::NOTIFICATION_TYPES[:TRACK]
 
@@ -487,6 +510,36 @@ describe Optimizely::NotificationCenter do
         # Verifies that all callbacks for NotificationType::ACTIVATE are called and no other callbacks are called
         expect(spy_logger).to_not have_received(:log)
           .with(Logger::INFO, 'delivered three.')
+      end
+
+      it 'should send notifications and verify that all callbacks as closures are called' do
+        notification_type_decision = Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]
+
+        def sum(args)
+          spy_logger.log Logger::INFO, "Sum: #{args.inject(:+)}"
+        end
+
+        callback_proc = proc { |args| sum(args) }
+        callback_lambda = ->(args) { sum(args) }
+
+        notification_center.add_notification_listener(notification_type_decision, callback_lambda)
+        notification_center.add_notification_listener(notification_type_decision, callback_proc)
+        args = [8, 8]
+        notification_center.send_notifications(notification_type_decision, args)
+        expect(spy_logger).to have_received(:log).twice
+                                                 .with(Logger::INFO, 'Sum: 16')
+      end
+
+      it 'should send notifications and verify that callback as a block is called' do
+        notification_type_decision = Optimizely::NotificationCenter::NOTIFICATION_TYPES[:ACTIVATE]
+
+        notification_center.add_notification_listener(
+          notification_type_decision
+        ) { |args| spy_logger.log Logger::INFO, "Sum: #{args.inject(:+)}" }
+        args = [8, 8]
+        notification_center.send_notifications(notification_type_decision, args)
+        expect(spy_logger).to have_received(:log).once
+                                                 .with(Logger::INFO, 'Sum: 16')
       end
     end
 
