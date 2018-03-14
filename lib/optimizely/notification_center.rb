@@ -33,7 +33,7 @@ module Optimizely
       @error_handler = error_handler
     end
 
-    def add_notification_listener(notification_type, notification_callback)
+    def add_notification_listener(notification_type, callback = nil, &block)
       # Adds notification callback to the notification center
 
       # Args:
@@ -45,12 +45,13 @@ module Optimizely
 
       return nil unless notification_type_valid?(notification_type)
 
+      notification_callback = callback.present? ? callback : block
       unless notification_callback
         @logger.log Logger::ERROR, 'Callback can not be empty.'
         return nil
       end
 
-      unless notification_callback.is_a? Method
+      unless notification_callback.respond_to? :call
         @logger.log Logger::ERROR, 'Invalid notification callback given.'
         return nil
       end
