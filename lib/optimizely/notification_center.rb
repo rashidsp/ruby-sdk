@@ -109,7 +109,7 @@ module Optimizely
       # arbitrary list of parameters according to which notification type was sent
 
       # Args:
-      #  notification_type: one of the constants in NOTIFICATION_TYPES
+      #  notification_type: one of the constants in NOTIFICATION_TYPESkjkjkj
       #  args: list of arguments to the callback
       return nil unless notification_type_valid?(notification_type)
 
